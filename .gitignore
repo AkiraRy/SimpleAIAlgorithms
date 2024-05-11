@@ -1,0 +1,8 @@
+env_backup
+.env
+*.pdf
+dataset
+.idea
+.csv
+.txt
+.png
