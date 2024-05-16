@@ -121,8 +121,10 @@ class ConvolutionLayer(ModelComponent):
 
 
 np.random.seed(42)
-input_data = np.random.randn(28, 28)  # Example 28x28 input image
-input_data = input_data.reshape(1, 28, 28, 1)
-conv_layer = ConvolutionLayer(num_filters=32, kernel_size=3, stride=1, padding=1)
-output_data = conv_layer.forward(input_data)
-print("Output shape:", output_data.shape)
+input_data = np.random.randn(16, 16)  # Example 28x28 input image
+input_data = input_data.reshape(1, 16, 16, 1)
+print(input_data)
+print(input_data.shape)
+# conv_layer = ConvolutionLayer(num_filters=32, kernel_size=3, stride=1, padding=1)
+# output_data = conv_layer.forward(input_data)
+# print("Output shape:", output_data.shape)
