@@ -3,6 +3,10 @@ env_backup
 *.pdf
 dataset
 .idea
-.csv
-.txt
-.png
+*.csv
+*.txt
+*.png
+__pycache__
+test.py
+test.jpg
+multilayer/test.py
