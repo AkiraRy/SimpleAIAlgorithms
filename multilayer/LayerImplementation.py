@@ -1,20 +1,8 @@
 from typing import Callable
 from AbstractClasses import Layer
 import numpy as np
-# shape in numpy
-# z, y, x - depth, height, width respectively
-
-
-def get_fans(shape):
-    fan_in = shape[0] if len(shape) == 2 else np.prod(shape[1:])
-    fan_out = shape[1] if len(shape) == 2 else shape[0]
-    return fan_in, fan_out
-
-
-def glorot_uniform(shape):
-    fan_in, fan_out = get_fans(shape)
-    s = np.sqrt(6. / (fan_in + fan_out))
-    return np.random.uniform(low=-s, high=s, size=shape)
+from ActivationImplementation import ReLU, SoftMax
+from initialization import glorot_uniform
 
 
 class ConvolutionalLayer(Layer):
@@ -34,6 +22,7 @@ class ConvolutionalLayer(Layer):
 
         self.num_filters = num_filters
         self.kernel_size = kernel_size
+        self.initializer = initializer
         self.stride = stride
         self.padding = padding
         self.use_bias = use_bias
@@ -47,7 +36,7 @@ class ConvolutionalLayer(Layer):
 
            Arguments:
            X -- output activations of the previous layer, numpy array of shape (height, width) assuming input channels = 1
-           Input should have those dimensions b, d, h, w = Batch number, depth, heigh. width
+           Input should have those dimensions b, d, h, w = Batch number, depth, heigth. width
            Returns:
            H -- conv output, numpy array of size (n_H, n_W)
            cache -- cache of values needed for conv_backward() function
@@ -67,7 +56,8 @@ class ConvolutionalLayer(Layer):
         padded_input = np.pad(Input, ((0,), (self.padding,), (self.padding,), (0,)), mode='constant')
         # shape is batch_number, y, x, depth
 
-        output_matrix = np.zeros((batch_number, output_dim, output_dim, self.num_filters))
+        new_shape = (batch_number, output_dim, output_dim, self.num_filters)
+        output_matrix = np.zeros(new_shape)
 
         for batch_index in range(batch_number):
             for height in range(output_dim):
@@ -88,8 +78,8 @@ class ConvolutionalLayer(Layer):
         return output_matrix, cache
 
     def setup_weights(self, depth):
-        print((self.num_filters, self.kernel_size, self.kernel_size, depth))
-        self.weights = glorot_uniform(shape=(self.num_filters, self.kernel_size, self.kernel_size, depth))
+        # print((self.num_filters, self.kernel_size, self.kernel_size, depth))
+        self.weights = self.initializer(shape=(self.num_filters, self.kernel_size, self.kernel_size, depth))
 
         if self.use_bias:
             self.bias = np.random.randn(self.num_filters)
@@ -97,7 +87,10 @@ class ConvolutionalLayer(Layer):
             self.bias = np.zeros(self.num_filters)
 
 
-class MaxPollingLayer(Layer):
+class PollingLayer(Layer):
+    def __str__(self):
+        return f'Polling(kernel={self.kernel_size}, stride={self.stride}, mode={self.mode})'
+
     def __init__(self, kernel_size: int, stride: int, mode="max_pool"):
         self.index_matrix = None
         self.input_shape = None
@@ -144,6 +137,56 @@ class MaxPollingLayer(Layer):
     def backward(self):
         pass
 
+
+class Flatten(Layer):
+    def __init__(self):
+        self.input_shape = None
+
+    def __str__(self):
+        return 'Flatten'
+
+    def forward(self, Input):
+        self.input_shape = Input.shape
+        output_matrix = np.reshape(Input, (self.input_shape[0], np.prod(self.input_shape[1:])))
+        return np.transpose(output_matrix)
+
+    def backward(self):
+        pass
+
+
+class Dense(Layer):
+    def __init__(self, output_dim, use_bias= False):
+        self.input_x = None
+        self.use_bias = use_bias
+        self.output_dim = output_dim
+        self.weights = None
+        self.bias = None
+        self.output = None
+        self.weights_setup = False
+
+    def __str__(self):
+        return f'Dense(output_dim={self.output_dim})'
+
+    def forward(self, Input):
+        self.input_x = Input
+
+        if not self.weights_setup:
+            self.setup_weights((self.output_dim, Input.shape[0]))
+            self.weights_setup = True
+            
+        output_matrix = self.weights @ Input + self.bias
+        return output_matrix
+
+    def backward(self):
+        pass
+
+    def setup_weights(self, shape):
+        self.weights = glorot_uniform(shape=shape)
+
+        if self.use_bias:
+            self.bias = glorot_uniform(shape=(shape[0], 1))
+        else:
+            self.bias = np.zeros((self.output_dim,1))
 
 
 def main():
@@ -196,8 +239,116 @@ def test():
     #
     # print("Output shape:", output_data.shape)
 
+def test_forward():
+    array_string = """[[  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+        0,  0,  0,  0,  0,  0,  0,  0,  0,  0],
+     [  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+        0,  0,  0,  0,  0,  0,  0,  0,  0,  0],
+     [  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+        0,  0,  0,  0,  0,  0,  0,  0,  0,  0],
+     [  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+        0,  0,  0,  0,  0,  0,  0,  0,  0,  0],
+     [  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+        0,  0,  0,  0,  0,  0,  0,  0,  0,  0],
+     [  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  3, 18, 18, 18,126,136,
+      175, 26,166,255,247,127,  0,  0,  0,  0],
+     [  0,  0,  0,  0,  0,  0,  0,  0, 30, 36, 94,154,170,253,253,253,253,253,
+      225,172,253,242,195, 64,  0,  0,  0,  0],
+     [  0,  0,  0,  0,  0,  0,  0, 49,238,253,253,253,253,253,253,253,253,251,
+       93, 82, 82, 56, 39,  0,  0,  0,  0,  0],
+     [  0,  0,  0,  0,  0,  0,  0, 18,219,253,253,253,253,253,198,182,247,241,
+        0,  0,  0,  0,  0,  0,  0,  0,  0,  0],
+     [  0,  0,  0,  0,  0,  0,  0,  0, 80,156,107,253,253,205, 11,  0, 43,154,
+        0,  0,  0,  0,  0,  0,  0,  0,  0,  0],
+     [  0,  0,  0,  0,  0,  0,  0,  0,  0, 14,  1,154,253, 90,  0,  0,  0,  0,
+        0,  0,  0,  0,  0,  0,  0,  0,  0,  0],
+     [  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,139,253,190,  2,  0,  0,  0,
+        0,  0,  0,  0,  0,  0,  0,  0,  0,  0],
+     [  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 11,190,253, 70,  0,  0,  0,
+        0,  0,  0,  0,  0,  0,  0,  0,  0,  0],
+     [  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 35,241,225,160,108,  1,
+        0,  0,  0,  0,  0,  0,  0,  0,  0,  0],
+     [  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 81,240,253,253,119,
+       25,  0,  0,  0,  0,  0,  0,  0,  0,  0],
+     [  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 45,186,253,253,
+      150, 27,  0,  0,  0,  0,  0,  0,  0,  0],
+     [  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 16, 93,252,
+      253,187,  0,  0,  0,  0,  0,  0,  0,  0],
+     [  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,249,
+      253,249, 64,  0,  0,  0,  0,  0,  0,  0],
+     [  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 46,130,183,253,
+      253,207,  2,  0,  0,  0,  0,  0,  0,  0],
+     [  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 39,148,229,253,253,253,
+      250,182,  0,  0,  0,  0,  0,  0,  0,  0],
+     [  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 24,114,221,253,253,253,253,201,
+       78,  0,  0,  0,  0,  0,  0,  0,  0,  0],
+     [  0,  0,  0,  0,  0,  0,  0,  0, 23, 66,213,253,253,253,253,198, 81,  2,
+        0,  0,  0,  0,  0,  0,  0,  0,  0,  0],
+     [  0,  0,  0,  0,  0,  0, 18,171,219,253,253,253,253,195, 80,  9,  0,  0,
+        0,  0,  0,  0,  0,  0,  0,  0,  0,  0],
+     [  0,  0,  0,  0, 55,172,226,253,253,253,253,244,133, 11,  0,  0,  0,  0,
+        0,  0,  0,  0,  0,  0,  0,  0,  0,  0],
+     [  0,  0,  0,  0,136,253,253,253,212,135,132, 16,  0,  0,  0,  0,  0,  0,
+        0,  0,  0,  0,  0,  0,  0,  0,  0,  0],
+     [  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+        0,  0,  0,  0,  0,  0,  0,  0,  0,  0],
+     [  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+        0,  0,  0,  0,  0,  0,  0,  0,  0,  0],
+     [  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+        0,  0,  0,  0,  0,  0,  0,  0,  0,  0]]"""
+    array = np.array(eval(array_string))
+    # Conv 6 5 1 2
+    # ReLU
+    # Pool 2 2
+    # Conv 12 5 1 0
+    # ReLU
+    # Pool 2 2
+    # Conv 100 5 1 0
+    # ReLU
+    # Flatten
+    # FC 10
+    # Softmax
+    np.random.seed(42)
+    conv_layer1 = ConvolutionalLayer(5, 6, 1, 2)
+    relu1 = ReLU()
+    pool1 = PollingLayer(2, 2)
+    conv2 = ConvolutionalLayer(5, 12, 1, 0)
+    relu2 = ReLU()
+    pool2 = PollingLayer(2, 2)
+    conv3 = ConvolutionalLayer(5, 100, 1, 0)
+    flatten = Flatten()
+    fc = Dense(10)
+    softmax = SoftMax()
+
+    array = array.reshape(1, 28, 28, 1)
+    output = conv_layer1.forward(array)[0]
+    output1 = relu1.forward(output)
+    # print(f"{output1.shape=}")
+    output2 = pool1.forward(output1)
+    # print(f"{output2.shape=}")
+    output3 = conv2.forward(output2)[0]
+    # print(f"{output3.shape=}")
+    output4 = relu2.forward(output3)
+    # print(f"{output4.shape=}")
+    output5 = pool2.forward(output4)
+    # print(f"{output5.shape=}")
+    output6 = conv3.forward(output5)[0]
+    # print(f"{output6.shape=}")
+    output7 = flatten.forward(output6)
+    # print(f"{output7.shape=}")
+    output8 = fc.forward(output7)
+    # print(f"{output8.shape=}")
+    output9 = softmax.forward(output8)
+    print(output9)
+    # print(f"{output9.shape=}")
 
 if __name__ == '__main__':
     # main()
     # main_test_initializer()
-    test()
+    test_forward()
+    # np.random.seed(42)
+    # input_data = np.random.randn(28, 28)  # Example 28x28 input image
+    # input_data = input_data.reshape(1, 28, 28, 1)
+    # conv_layer = ConvolutionalLayer(num_filters=32, kernel_size=5, stride=1, padding=2)
+    # output_data = conv_layer.forward(input_data)[0]
+    # print("Output shape:", output_data.shape)

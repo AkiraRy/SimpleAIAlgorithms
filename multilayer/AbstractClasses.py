@@ -25,9 +25,9 @@ class LibMath(ABC):
         pass
 
 
-class ActivationFunction(ABC):
+class Activation(ABC):
     @abstractmethod
-    def activate(self, x):
+    def forward(self, x):
         """
         Applies activation function on net value
 
@@ -35,20 +35,20 @@ class ActivationFunction(ABC):
         - x: Input tensor or array.
 
         Returns:
-        - Output number
+        - Output tensor, array, number
         """
         pass
 
     @abstractmethod
-    def derivative(self, x):
+    def backward(self, dO):
         """
-        Uses derivative version of an activation function on net value
+        Backward pass method for the layer.
 
         Parameters:
-        - x: Input tensor or array.
+            dO (numpy.ndarray): The gradient of the loss with respect to the output of the activation function of the current layer.
 
         Returns:
-        - Output number
+            numpy.ndarray: The gradient of the loss with respect to the input of the layer.
         """
         pass
 
