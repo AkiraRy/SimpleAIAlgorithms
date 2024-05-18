@@ -1,8 +1,4 @@
 from typing import Callable
-
-import numpy as np
-from PIL.Image import Image
-
 from AbstractClasses import Layer
 import numpy as np
 # shape in numpy
@@ -21,22 +17,6 @@ def glorot_uniform(shape):
     return np.random.uniform(low=-s, high=s, size=shape)
 
 
-
-# initialization
-# def glorot_uniform(shape):
-#     """Initialize weights with Glorot uniform distribution."""
-#     if len(shape) == 2:
-#         fan_in, fan_out = shape[0], shape[1]
-#     elif len(shape) == 3:
-#         receptive_field_size = np.prod(shape[:2])
-#         fan_in, fan_out = receptive_field_size * shape[2], shape[2]
-#     else:
-#         raise ValueError("Shape should be 2D or 3D.")
-#
-#     limit = np.sqrt(6 / (fan_in + fan_out))
-#     return np.random.uniform(-limit, limit, size=shape)
-
-
 class ConvolutionalLayer(Layer):
     def backward(self):
         pass
@@ -45,7 +25,7 @@ class ConvolutionalLayer(Layer):
         return f'Conv(filter={self.num_filters}, kernel={self.kernel_size}, stride={self.stride}, padding={self.padding})'
 
     def __init__(self,
-                 kernel_size: tuple = 3,
+                 kernel_size: int = 3,
                  num_filters: int = 1,
                  stride: int = 1,
                  padding: int = 0,
@@ -56,10 +36,12 @@ class ConvolutionalLayer(Layer):
         self.kernel_size = kernel_size
         self.stride = stride
         self.padding = padding
+        self.use_bias = use_bias
+        self.bias = None
         self.weights = None
         self.weights_setup = False
 
-    def forward(self, input):
+    def forward(self, Input):
         """
            The forward computation for a convolution function
 
@@ -70,51 +52,99 @@ class ConvolutionalLayer(Layer):
            H -- conv output, numpy array of size (n_H, n_W)
            cache -- cache of values needed for conv_backward() function
         """
-        batch_number,  height, width, depth = input.shape
+        batch_number,  height, width, input_depth = Input.shape
         output_dim_temp = height - self.kernel_size + 2*self.padding
         assert output_dim_temp % self.stride == 0, (f"In the convolutional layer, with stride {self.stride}"
                                                     f" can`t process whole image evenly.")
 
-        output_dim = output_dim_temp/self.stride + 1
+        output_dim = int(output_dim_temp/self.stride) + 1
         output_depth = self.num_filters
 
         if not self.weights_setup:
-            self.setup_weights(height, depth)
+            self.setup_weights(input_depth)
             self.weights_setup = True
 
-        # dimensions of filters aka y,x,z
-        # also height and width of kernel should be the same, but i wont check for it
-        num_filter, kernel_height, kernel_width = self.filters.shape
+        padded_input = np.pad(Input, ((0,), (self.padding,), (self.padding,), (0,)), mode='constant')
+        # shape is batch_number, y, x, depth
 
-        padded_input = np.pad(input, self.padding, mode='constant')
-        # print(f"padded input shape {padded_input.shape}")
-        # Retrieving dimensions from X's shape
-        input_height, input_width = padded_input.shape
+        output_matrix = np.zeros((batch_number, output_dim, output_dim, self.num_filters))
 
-        # Compute the output dimensions
-        new_height = (input_height - kernel_height) // self.stride + 1
-        new_width = (input_width - kernel_width) // self.stride + 1
+        for batch_index in range(batch_number):
+            for height in range(output_dim):
+                for width in range(output_dim):
+                    height_from = height * self.stride
+                    height_to = height_from + self.kernel_size
+                    width_from = width * self.stride
+                    width_to = width_from + self.kernel_size
 
-        # Initialize the output H with zeros
-        output_matrix = np.zeros((num_filter, new_height, new_width))
-        # output_matrix = np.zeros((new_height, new_width))
+                    image_slice = padded_input[batch_index, height_from:height_to, width_from: width_to, :]
 
-        # Looping over vertical(h) and horizontal(w) axis of output volume
-        for h in range(0, new_height):
-            for w in range(0, new_width):
-                input_slice = padded_input[h * self.stride: h * self.stride + kernel_height,
-                        w * self.stride: w * self.stride + kernel_width]
+                    for filter_index in range(self.num_filters):
+                        output_matrix[batch_index, height, width, filter_index] = \
+                            np.sum(image_slice * self.weights[filter_index]) + self.bias[filter_index]
 
-                for z in range(self.num_filters):
-                    output_matrix[z, h, w] = np.sum(input_slice * self.filters[z] + self.bias[z])
-
-        # Saving information in 'cache' for backprop
-        cache = (input, self.filters)
+        cache = (Input, self.weights, self.bias)
 
         return output_matrix, cache
 
-    def setup_weights(self, input_dim, depth):
-        self.weights_setup
+    def setup_weights(self, depth):
+        print((self.num_filters, self.kernel_size, self.kernel_size, depth))
+        self.weights = glorot_uniform(shape=(self.num_filters, self.kernel_size, self.kernel_size, depth))
+
+        if self.use_bias:
+            self.bias = np.random.randn(self.num_filters)
+        else:
+            self.bias = np.zeros(self.num_filters)
+
+
+class MaxPollingLayer(Layer):
+    def __init__(self, kernel_size: int, stride: int, mode="max_pool"):
+        self.index_matrix = None
+        self.input_shape = None
+        self.kernel_size = kernel_size
+        self.stride = stride
+        self.mode = mode
+
+    def average_pool(self, Input):
+        pass
+
+    def max_pool(self, Input: np.ndarray):
+        batch_number, height, width, input_depth = Input.shape
+        output_dim_temp = height - self.kernel_size
+
+        assert output_dim_temp % self.stride == 0, (f"In the convolutional layer, with stride {self.stride}"
+                                                    f" can`t process whole image evenly.")
+
+        output_dim = output_dim_temp // self.stride + 1
+
+        output_matrix = np.zeros((batch_number, output_dim, output_dim, input_depth))
+        self.index_matrix = np.zeros((batch_number, output_dim, output_dim, input_depth)).astype(np.int32)
+        self.input_shape = Input.shape
+
+        for batch_index in range(batch_number):
+            for height in range(output_dim):
+                for width in range(output_dim):
+                    height_from = height * self.stride
+                    height_to = height_from + self.kernel_size
+                    width_from = width * self.stride
+                    width_to = width_from + self.kernel_size
+
+                    image_slice = Input[batch_index, height_from:height_to, width_from: width_to, :]
+                    for d in range(input_depth):
+                        output_matrix[batch_index, height, width, d] = np.max(image_slice[:, :, d])
+                        self.index_matrix[batch_index, height, width, d] = np.argmax(image_slice[:, :, d])
+
+        return output_matrix
+
+    def forward(self, Input):
+            if self.mode == "max_pool":
+                return self.max_pool(Input)
+            return self.average_pool(Input)
+
+    def backward(self):
+        pass
+
+
 
 def main():
     # Print the shape of the batch matrix
@@ -147,23 +177,27 @@ def main_test_initializer():
 
     # Constructing the shape tuple
     example_shape = (num_filters, kernel_size, kernel_size, num_channels)
-    example_filter_weights  = glorot_uniform(shape=example_shape)
+    example_filter_weights = glorot_uniform(shape=example_shape)
 
     print(example_filter_weights[0])
     print(example_filter_weights[0].shape)
-    filter_to_show = example_filter_weights[0]
 
-    min_value = np.min(filter_to_show)
-    max_value = np.max(filter_to_show)
-    normalized_weights = (filter_to_show - min_value) / (max_value - min_value) * 255
-    normalized_weights = normalized_weights.astype(np.uint8)
 
-    # Create a PIL image from the normalized weights
-    pil_image = Image.fromarray(normalized_weights)
+def test():
+    np.random.seed(42)
 
-    # Show the PIL image
-    pil_image.show()
+    # input_data = np.random.randn(28, 28)  # Example 28x28 input image
+    # input_data = input_data.reshape(1, 28, 28, 1)
+    # print(get_fans((32, 3, 3, 1)))
+    # # print(input_data.shape)
+    # conv_layer = ConvolutionalLayer(num_filters=32, kernel_size=3, stride=1, padding=1)
+    # output_data = conv_layer.forward(input_data)[0]
+    # # print(output_data[0])
+    #
+    # print("Output shape:", output_data.shape)
+
 
 if __name__ == '__main__':
     # main()
-    main_test_initializer()
+    # main_test_initializer()
+    test()

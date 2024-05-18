@@ -2,13 +2,12 @@
 import math
 import os
 from typing import Union, Tuple, List
-
 from matplotlib import pyplot as plt
-
 from AbstractClasses import Dataset
 from PIL import Image
 import numpy as np
-from LayerImplementation import ConvolutionalLayer
+from LayerImplementation import ConvolutionalLayer, MaxPollingLayer as MaxPollingLayerMINE
+from test import MaxPoolingLayer
 
 def get_image_paths(folder_path):
     image_paths_dict = {}
@@ -145,6 +144,7 @@ class DatasetImages(Dataset):
 
 # from collections import Counter
 
+
 if __name__ == '__main__':
     # Testing if this thing works correctly
 
@@ -155,104 +155,47 @@ if __name__ == '__main__':
     dummy_list2 = []
 
     getter = my_generator.get_next_data_row()
-    # for key, value in my_generator.get_next_data_row():
-        # dummy_list1.setdefault(key, []).extend([value])
-        # dummy_list1.append((key, value))
     dummy_list1.append(next(getter))
 
-    its_key = dummy_list1[0][0]
-    first_array = dummy_list1[0][1][0]
-    print(f"{first_array.shape}")
-    conv_layer = ConvolutionalLayer(kernel_size=(20,20), num_filters=4, stride=3, padding=0, use_bias=True)
-    conv_layer2 = ConvolutionalLayer(kernel_size=(11,11), num_filters=4, stride=2, padding=0, use_bias=True)
-    conv_layer3 = ConvolutionalLayer(kernel_size=(11,11), num_filters=4, stride=1, padding=0, use_bias=True)
+    batch_keys = dummy_list1[0][0]
+    image_data = dummy_list1[0][1].reshape(1,600,600,1)
+    # print(batch_keys)
+    # print(image_data[0])
 
-    forward_pass_second = conv_layer3.forward(first_array)[0] # 0 is output,  1 is cache
-    forward_pass_first = conv_layer2.forward(forward_pass_second[0])[0]
-    forward_pass = conv_layer.forward(forward_pass_first[0])[0]
-    new_array = forward_pass
-    new_shape = forward_pass[0].shape
+    max_pool_mine = MaxPollingLayerMINE(kernel_size=2, stride=2)
+    max_pool_his = MaxPoolingLayer(kernel_size=2, stride=2)
 
-    print(f"{new_shape = }")
 
-    plt.figure(figsize=(12, 6))
-    plt.subplot(1, 5, 1)
-    plt.imshow(first_array, cmap='gray')  # Use cmap='gray' for grayscale
-    plt.title('Original Image')
-    plt.axis('off')
+    def numpy_to_image(array):
+        array = (array * 255).astype(np.uint8)
+        if array.shape[2] == 1:
+            array = array.squeeze(axis=2)
+            return Image.fromarray(array, mode='L')
+        else:
+            return Image.fromarray(array, mode='RGB')
 
-    num_filters = new_array.shape[0]
 
-    for i in range(num_filters):
-        plt.subplot(1, num_filters + 1, i + 2)
-        plt.imshow(forward_pass[i], cmap='gray')  # Use cmap='gray' for grayscale
-        plt.title(f'Processed Image {i + 1}')
-        plt.axis('off')
+    mine_image_pooled = max_pool_mine.forward(image_data)[0]
+    his_image_pooled = max_pool_his.forward(image_data)[0]
+    print(his_image_pooled.shape)
+    # Convert the original and pooled images to PIL Images
+    original_image = numpy_to_image(image_data[0])
+    mine_pooled_image = numpy_to_image(mine_image_pooled)
+    his_pooled_image = numpy_to_image(his_image_pooled)
 
-    # Display the new image
-    # plt.subplot(1, 2, 2)
-    # plt.imshow(new_array, cmap='gray')  # Use cmap='gray' for grayscale
-    # plt.title('Processed Image')
-    # plt.axis('off')
+    # Plot the images using matplotlib
+    fig, ax = plt.subplots(1, 3, figsize=(15, 5))
+
+    ax[0].imshow(original_image)
+    ax[0].set_title("Original Image")
+    ax[0].axis('off')
+
+    ax[1].imshow(mine_pooled_image)
+    ax[1].set_title("Mine Pooled Image")
+    ax[1].axis('off')
+
+    ax[2].imshow(his_pooled_image)
+    ax[2].set_title("His Pooled Image")
+    ax[2].axis('off')
 
     plt.show()
-
-    # old_im = Image.fromarray(first_array)
-    # new_im = Image.fromarray(new_array)
-    # old_im.show()
-    # new_im.show()
-
-    # Flatten the list of lists
-    # flattened_list = [item for sublist in dummy_list1 for item in sublist]
-    #
-    # Count the occurrences of each letter
-    # letter_occurrences = Counter(flattened_list)
-    #
-    # Print the dictionary
-    # sorted_occurrences = dict(sorted(letter_occurrences.items()))
-    #
-    # Print the sorted dictionary
-    # print(sorted_occurrences)
-
-    # Populating dictionary from dummy_list2
-    # for key, value in my_generator.get_next_test_row():
-    #     # dummy_list2.setdefault(key, []).extend([value])
-    #     dummy_list2.append(key)
-    #
-    # flattened_list2 = [item for sublist in dummy_list2 for item in sublist]
-    #
-    # # Count the occurrences of each letter
-    # letter_occurrences2 = Counter(flattened_list2)
-    #
-    # # Print the dictionary
-    # sorted_occurrences2 = dict(sorted(letter_occurrences2.items()))
-    #
-    # # Print the sorted dictionary
-    # print(sorted_occurrences2)
-    # #
-    # sum_for_test = 0
-    # for el in dummy_list2:
-    #     sum_for_test+=len(el)
-    #     print(f"length of the batches in data test: {el[1]}")
-
-    # print(len(dummy_list1))
-    # print(len(dummy_list2))
-
-    # print(sum_for_train)
-    # print(sum_for_test)
-    # Find common elements
-    # common_elements = set(dummy_list1) & set(dummy_list2)
-    #
-    # # Remove common elements from each array
-    # array1 = [x for x in dummy_list1 if x not in common_elements]
-    # array2 = [x for x in dummy_list2 if x not in common_elements]
-    #
-    # # Print arrays after removing common elements
-    # print("Array 1 after removal:", len(array1))
-    # print("Array 2 after removal:", len(array2))
-
-    """
-    1432
-    350
-    1782
-    """

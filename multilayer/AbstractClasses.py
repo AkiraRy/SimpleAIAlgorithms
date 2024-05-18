@@ -55,7 +55,7 @@ class ActivationFunction(ABC):
 
 class Layer(ABC):
     @abstractmethod
-    def forward(self, input):
+    def forward(self, Input):
         pass
 
     @abstractmethod
