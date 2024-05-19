@@ -75,7 +75,8 @@ class ConvolutionalLayer(Layer):
 
         cache = (Input, self.weights, self.bias)
 
-        return output_matrix, cache
+        # return output_matrix, cache
+        return output_matrix
 
     def setup_weights(self, depth):
         # print((self.num_filters, self.kernel_size, self.kernel_size, depth))
@@ -148,45 +149,90 @@ class Flatten(Layer):
     def forward(self, Input):
         self.input_shape = Input.shape
         output_matrix = np.reshape(Input, (self.input_shape[0], np.prod(self.input_shape[1:])))
-        return np.transpose(output_matrix)
+        return output_matrix
+        # return np.transpose(output_matrix)
 
     def backward(self):
         pass
 
 
+# class Dense(Layer):
+#     def __init__(self, output_dim, use_bias= False):
+#         self.use_bias = use_bias
+#         self.output_dim = output_dim
+#         self.weights_setup = False
+#
+#         # trainable params
+#         self.weights = None
+#         self.bias = None
+#
+#         # data
+#         self.input_x = None
+#         self.output = None
+#
+#     def __str__(self):
+#         return f'Dense(output_dim={self.output_dim})'
+#
+#     def forward(self, Input):
+#         self.input_x = Input
+#
+#         if not self.weights_setup:
+#             self.setup_weights((self.output_dim, Input.shape[0]))
+#             self.weights_setup = True
+#
+#         output_matrix = np.dot(self.weights, Input) + self.bias
+#         return output_matrix
+#
+#     def backward(self):
+#         pass
+#
+#     def setup_weights(self, shape):
+#         self.weights = glorot_uniform(shape=shape)
+#
+#         if self.use_bias:
+#             self.bias = glorot_uniform(shape=(shape[0], 1))
+#         else:
+#             self.bias = np.zeros((self.output_dim,1))
 class Dense(Layer):
-    def __init__(self, output_dim, use_bias= False):
-        self.input_x = None
+    def __init__(self, output_dim, initializer: Callable = glorot_uniform, use_bias: bool = True):
+        self.initializer = initializer
         self.use_bias = use_bias
         self.output_dim = output_dim
+        self.weights_setup = False
+
+        # trainable params
         self.weights = None
         self.bias = None
+
+        # data
+        self.input_x = None
         self.output = None
-        self.weights_setup = False
+
+    def setup_weights(self, shape):
+        self.weights = self.initializer(shape)
+        if self.use_bias:
+            self.bias = np.zeros(self.output_dim, )
+        else:
+            self.bias = None
+
+    def forward(self, Input):
+        print(f"{Input.shape = }")
+        if not self.weights_setup:
+            self.setup_weights((Input.shape[1],self.output_dim, ))
+            self.weights_setup = True
+
+        self.input_x = Input
+
+        self.output = np.dot(Input, self.weights)
+        if self.use_bias:
+            self.output += self.bias
+        return self.output
+
+    def backward(self):
+        pass
 
     def __str__(self):
         return f'Dense(output_dim={self.output_dim})'
-
-    def forward(self, Input):
-        self.input_x = Input
-
-        if not self.weights_setup:
-            self.setup_weights((self.output_dim, Input.shape[0]))
-            self.weights_setup = True
-            
-        output_matrix = self.weights @ Input + self.bias
-        return output_matrix
-
-    def backward(self):
-        pass
-
-    def setup_weights(self, shape):
-        self.weights = glorot_uniform(shape=shape)
-
-        if self.use_bias:
-            self.bias = glorot_uniform(shape=(shape[0], 1))
-        else:
-            self.bias = np.zeros((self.output_dim,1))
 
 
 def main():
@@ -229,15 +275,14 @@ def main_test_initializer():
 def test():
     np.random.seed(42)
 
-    # input_data = np.random.randn(28, 28)  # Example 28x28 input image
-    # input_data = input_data.reshape(1, 28, 28, 1)
-    # print(get_fans((32, 3, 3, 1)))
-    # # print(input_data.shape)
-    # conv_layer = ConvolutionalLayer(num_filters=32, kernel_size=3, stride=1, padding=1)
-    # output_data = conv_layer.forward(input_data)[0]
-    # # print(output_data[0])
-    #
-    # print("Output shape:", output_data.shape)
+    input_data = np.random.randn(28, 28)  # Example 28x28 input image
+    input_data = input_data.reshape(1, 28, 28, 1)
+    # print(input_data.shape)
+    conv_layer = ConvolutionalLayer(num_filters=32, kernel_size=3, stride=1, padding=1)
+    output_data = conv_layer.forward(input_data)[0]
+    # print(output_data[0])
+
+    print("Output shape:", output_data.shape)
 
 def test_forward():
     array_string = """[[  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
@@ -321,31 +366,34 @@ def test_forward():
     softmax = SoftMax()
 
     array = array.reshape(1, 28, 28, 1)
-    output = conv_layer1.forward(array)[0]
+    output = conv_layer1.forward(array)
+    print(f"{output.shape=}")
     output1 = relu1.forward(output)
-    # print(f"{output1.shape=}")
+    print(f"{output1.shape=}")
     output2 = pool1.forward(output1)
-    # print(f"{output2.shape=}")
-    output3 = conv2.forward(output2)[0]
-    # print(f"{output3.shape=}")
+    print(f"{output2.shape=}")
+    output3 = conv2.forward(output2)
+    print(f"{output3.shape=}")
     output4 = relu2.forward(output3)
-    # print(f"{output4.shape=}")
+    print(f"{output4.shape=}")
     output5 = pool2.forward(output4)
-    # print(f"{output5.shape=}")
-    output6 = conv3.forward(output5)[0]
-    # print(f"{output6.shape=}")
+    print(f"{output5.shape=}")
+    output6 = conv3.forward(output5)
+    print(f"{output6.shape=}")
     output7 = flatten.forward(output6)
-    # print(f"{output7.shape=}")
+    # print(f"{output7=}")
+    print(f"{output7.shape=}")
     output8 = fc.forward(output7)
-    # print(f"{output8.shape=}")
+    print(f"{output8.shape=}")
     output9 = softmax.forward(output8)
-    print(output9)
-    # print(f"{output9.shape=}")
+    print(f"{output9.shape=}")
+    print(f"{np.sort(output9, axis=0)=}")
+
 
 if __name__ == '__main__':
     # main()
-    # main_test_initializer()
     test_forward()
+    # main_test_initializer()
     # np.random.seed(42)
     # input_data = np.random.randn(28, 28)  # Example 28x28 input image
     # input_data = input_data.reshape(1, 28, 28, 1)

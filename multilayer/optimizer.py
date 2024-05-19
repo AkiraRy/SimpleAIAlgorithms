@@ -53,7 +53,7 @@ def Momentum(data, theta, lr = 1e-2, gamma = 0.9, num_iterations = 5000):
         #store loss of every iteration
         loss.append(loss_function(data,theta))
     return loss
-x
+
 
 initial_theta = np.array([1.0, 2.0, 3.0])
 optimized_theta = Momentum(theta=initial_theta)

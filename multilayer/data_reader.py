@@ -6,8 +6,6 @@ from matplotlib import pyplot as plt
 from AbstractClasses import Dataset
 from PIL import Image
 import numpy as np
-from LayerImplementation import ConvolutionalLayer, MaxPollingLayer as MaxPollingLayerMINE
-from test import MaxPoolingLayer
 
 def get_image_paths(folder_path):
     image_paths_dict = {}
@@ -29,7 +27,8 @@ def convert_paths_to_array(image_paths: list):
     converted_paths = []
     for img_path in image_paths:
         image_data = Image.open(img_path).convert("L")
-        image_array = np.asarray(image_data) / 255
+        image_data1 = image_data.resize((28, 28), Image.LANCZOS)
+        image_array = np.asarray(image_data1) / 255
         converted_paths.append(image_array)
     return converted_paths
 
@@ -149,53 +148,53 @@ if __name__ == '__main__':
     # Testing if this thing works correctly
 
     my_generator = DatasetImages("dataset", 0.2, batch_size=1)
-    # dummy_list1 = {}
-    dummy_list1 = []
-    # dummy_list2 = {}
-    dummy_list2 = []
 
     getter = my_generator.get_next_data_row()
-    dummy_list1.append(next(getter))
+    batch = [next(getter)]
 
-    batch_keys = dummy_list1[0][0]
-    image_data = dummy_list1[0][1].reshape(1,600,600,1)
-    # print(batch_keys)
-    # print(image_data[0])
+    batch_number = 0
+    letter = 0
+    data_img = 1
 
-    max_pool_mine = MaxPollingLayerMINE(kernel_size=2, stride=2)
-    max_pool_his = MaxPoolingLayer(kernel_size=2, stride=2)
+    image_data = batch[batch_number][data_img][0]
+    print(image_data.shape)
+    image_data_shape = image_data.shape
+    image_data_1 = image_data.reshape(1, image_data_shape[1], image_data_shape[0], 1)
 
-
-    def numpy_to_image(array):
-        array = (array * 255).astype(np.uint8)
-        if array.shape[2] == 1:
-            array = array.squeeze(axis=2)
-            return Image.fromarray(array, mode='L')
-        else:
-            return Image.fromarray(array, mode='RGB')
-
-
-    mine_image_pooled = max_pool_mine.forward(image_data)[0]
-    his_image_pooled = max_pool_his.forward(image_data)[0]
-    print(his_image_pooled.shape)
-    # Convert the original and pooled images to PIL Images
-    original_image = numpy_to_image(image_data[0])
-    mine_pooled_image = numpy_to_image(mine_image_pooled)
-    his_pooled_image = numpy_to_image(his_image_pooled)
-
-    # Plot the images using matplotlib
-    fig, ax = plt.subplots(1, 3, figsize=(15, 5))
-
-    ax[0].imshow(original_image)
-    ax[0].set_title("Original Image")
-    ax[0].axis('off')
-
-    ax[1].imshow(mine_pooled_image)
-    ax[1].set_title("Mine Pooled Image")
-    ax[1].axis('off')
-
-    ax[2].imshow(his_pooled_image)
-    ax[2].set_title("His Pooled Image")
-    ax[2].axis('off')
-
+    plt.imshow(image_data_1[0], cmap='gray')  # cmap='gray' for black and white images
+    plt.axis('off')  # Turn off axis
     plt.show()
+
+# def numpy_to_image(array):
+    #     array = (array * 255).astype(np.uint8)
+    #     if array.shape[2] == 1:
+    #         array = array.squeeze(axis=2)
+    #         return Image.fromarray(array, mode='L')
+    #     else:
+    #         return Image.fromarray(array, mode='RGB')
+    #
+    #
+    # mine_image_pooled = max_pool_mine.forward(image_data)[0]
+    # his_image_pooled = max_pool_his.forward(image_data)[0]
+    # print(his_image_pooled.shape)
+    # # Convert the original and pooled images to PIL Images
+    # original_image = numpy_to_image(image_data[0])
+    # mine_pooled_image = numpy_to_image(mine_image_pooled)
+    # his_pooled_image = numpy_to_image(his_image_pooled)
+    #
+    # # Plot the images using matplotlib
+    # fig, ax = plt.subplots(1, 3, figsize=(15, 5))
+    #
+    # ax[0].imshow(original_image)
+    # ax[0].set_title("Original Image")
+    # ax[0].axis('off')
+    #
+    # ax[1].imshow(mine_pooled_image)
+    # ax[1].set_title("Mine Pooled Image")
+    # ax[1].axis('off')
+    #
+    # ax[2].imshow(his_pooled_image)
+    # ax[2].set_title("His Pooled Image")
+    # ax[2].axis('off')
+    #
+    # plt.show()

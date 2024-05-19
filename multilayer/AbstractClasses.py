@@ -70,3 +70,22 @@ class Layer(ABC):
 #
 #     def multiply(self, a, b):
 #         return torch.mul(a, b)
+
+class Optimizer(ABC):
+    def __init__(self, lr, name):
+        self.lr = lr
+        self.name = name
+
+    @abstractmethod
+    def apply_gradients(self, params, grads):
+        pass
+
+
+class Loss(ABC):
+    def __init__(self, name):
+        self.name = name
+
+    @abstractmethod
+    def calculate_loss(self, y_true, y_predicted):
+        pass
+
