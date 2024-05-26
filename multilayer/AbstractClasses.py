@@ -4,17 +4,25 @@ from typing import Union, Tuple, List
 
 
 class Dataset(ABC):
-    def __init__(self, dataset_path: Union[Path, str], test_set_percentage: float, batch_size: int = 1):
+    def __init__(self, dataset_path: Union[Path, str], test_set_percentage: float):
         self.dataset_path = dataset_path
         self.test_set_percentage = test_set_percentage
-        self.batch_size = batch_size
 
     @abstractmethod
-    def get_next_data_row(self) -> Tuple[List[str], 'np.ndarray']:
+    def get_next_data_row(self, batch_size) -> Tuple[List[str], 'np.ndarray']:
         pass
 
     @abstractmethod
-    def get_next_test_row(self) -> Tuple[List[str], 'np.ndarray']:
+    def get_next_test_row(self, batch_size) -> Tuple[List[str], 'np.ndarray']:
+        pass
+
+    def update_learnable_parameters(self, del_w, del_b, lr):
+        pass
+
+    def save_learnable_parameters(self):
+        pass
+
+    def set_learnable_parameters(self):
         pass
 
 
@@ -59,7 +67,7 @@ class Layer(ABC):
         pass
 
     @abstractmethod
-    def backward(self):
+    def backward(self, do):
         pass
 
 
@@ -89,3 +97,6 @@ class Loss(ABC):
     def calculate_loss(self, y_true, y_predicted):
         pass
 
+    @abstractmethod
+    def backward(self, y_true, y_predicted):
+        pass

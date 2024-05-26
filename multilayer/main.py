@@ -12,7 +12,6 @@ from ActivationImplementation import ReLU
 from OptiomizerImplementation import SGD
 from LossImplementation import CrossEntropyLoss
 import matplotlib.pyplot as plt
-
 from multilayer.data_reader import DatasetImages
 
 optimizers = {
@@ -23,8 +22,17 @@ losses = {
 }
 
 
+def labels_to_one_hot(labels):
+    num_classes = 26  # Total number of classes (uppercase letters)
+    one_hot_labels = np.zeros((len(labels), num_classes))
+    for i, label in enumerate(labels):
+        index = ord(label) - ord('A')  # Uppercase letters from 'A' to 'Z'
+        one_hot_labels[i, index] = 1
+    return one_hot_labels
+
+
 class Sequential:
-    def __init__(self, ):
+    def __init__(self):
         self.layers = list()
         self.data_reader = None
         self.optimizer = None
@@ -48,26 +56,53 @@ class Sequential:
         else:
             raise IndexError("Index out of range")
 
-    def compile(self, optimizer: str = 'SGD', loss='cross_entropy', metrics='accuracy'):
-        self.optimizer = optimizers.get(optimizer)
-        self.loss = losses.get(loss)
+    def compile(self, optimizer: str = 'SGD', loss='cross_entropy', metrics='accuracy', lr=0.001):
+        self.optimizer = optimizers.get(optimizer)(lr=lr)
+        self.loss = losses.get(loss)()
 
     def fit(self, data_reader: Dataset, epochs=100, batch_size=32):
-        pass
+        train_generator = data_reader.get_next_data_row(batch_size=batch_size)
+        # ???
+        for epoch in range(epochs):
+            # y, x
+            # looks like list [...], looks like (batch_size, height,width, num channels)
+            y_train, x_train = next(train_generator)
+
+            y_predicted = self.forward(x_train)
+
+            # y_hat should be list of list, where each element is one-hot-encoded vector
+            # y looks like this already
+
+            y_hat_one_hot_encoded = labels_to_one_hot(y_train)
+            loss = self.loss.calculate_loss(y_hat_one_hot_encoded, y_predicted)  # for humans, tracking performance
+            loss_deriv = self.loss.backward(y_hat_one_hot_encoded, y_predicted)  # for model param updating
+
+            self.backward(loss_deriv)
+
+            # for batch in range(batch_size):
+            #     print(f'(Training) Epoch: {epoch + 1} -> {batch + 1}/{batch_size} Batches Trained.', end='\r')
 
     def evaluate(self):
         pass
 
-    def single_data_forwrd(self, Input):
+    def backward(self, do):
+        deriv_output = do
+        # deriv_list = []
+        for layer in reversed(self.layers):
+            deriv_output = layer.backward(deriv_output)
+
+
+    def forward(self, Input):
         output = Input
         out_list = []
-        counter = 1
+        # counter = 1
         for layer in self.layers:
             output = layer.forward(output)
-            out_list.append(output)
-            print(f"{counter} {output.shape = }")
-            counter += 1
-        return output, out_list
+            # out_list.append(output)
+            # print(f"{counter} {output.shape = }")
+            # counter += 1
+        # return output, out_list
+        return output
 
     def get_info(self):
         info = ''
@@ -127,7 +162,6 @@ def test():
         'l6': (PollingLayer, (2, 2)),
         'l7': (ConvolutionalLayer, (5, 100, 1, 0)),
         'l8': (Flatten, ()),
-        # 'l9': (Dense, (10,)),
         'l9': (Dense, (10, )),
         'l10': (SoftMax, ())
     }
@@ -138,8 +172,8 @@ def test():
     for key, value in model_param.items():
         model.add(value[0](*value[1]))
 
-    my_generator = DatasetImages("dataset", 0.2, batch_size=2)
-    getter = my_generator.get_next_data_row()
+    my_generator = DatasetImages("dataset", 0.2)
+    getter = my_generator.get_next_data_row(batch_size=2)
     batch = [next(getter)]
 
     batch_number = 0
@@ -155,96 +189,34 @@ def test():
     image_data_2 = image_data2.reshape(1,image_data_shape2[1], image_data_shape2[0], 1)
     batched_array = np.concatenate((image_data_1, image_data_2), axis=0)
 
+    output = model.forward(batched_array)
+    first_batch_out = output[0][0]
+    second_batch_out = output[0][1]
 
+    y_true_1 = [0]*10
+    y_true_1[1] = 1
 
-    # batched_array = np.concatenate((array, array2), axis=0)
+    y_true_2 = [0]*10
+    y_true_2[2] = 1
 
-    output = model.single_data_forwrd(batched_array)
-    print(output[0].shape)
-    print(output[0])
-    print(np.sum(output[0]))
+    loss1 = CrossEntropyLoss().calculate_loss([y_true_1], [first_batch_out])
+    loss2 = CrossEntropyLoss().calculate_loss([y_true_2], [second_batch_out])
+    print(f"loss of first batch: {loss1}")
+    print(f"loss of second batch: {loss2}")
+    print(f"average loss in  batch: {(loss1+loss2)/2}")
+
+    batched_y_true = np.array([y_true_1, y_true_2])
+    batched_out = output[0]
+    print(f"shape of batched y_true = {batched_y_true.shape}")
+    print(f"shape of batched predict = {batched_out.shape}")
+    print(f"Loss of the batch: {CrossEntropyLoss().calculate_loss(batched_y_true, batched_out)}")
+
+    # print(np.sum(output[0]))
     # print(model.get_info())
 
     # plot_layers([output, output1, output2, output3, output4, output5, output6, output7, output8, output9])
     # plot_layers(output[1])
 
-# def default(args):
-#     x_train, x_test, y_train, y_test = train_test_split(args.dataset_path, test_size=0.2)
-#     n_epochs = args.e
-#     learning_rate = args.alpha
-#     value_map = convert_target_to_number(set(y_train))
-#     nnetwork = NeuralNetwork(Layer(len(value_map), 26, linear), n_epochs, value_map, learning_rate)
-#     accuracies = nnetwork.fit(x_train,y_train, x_test, y_test)
-#     print(f"Accuracy of the model is: {nnetwork.test_accuracy()*100:.2f}%")
-#     plt.plot(range(1, n_epochs + 1), accuracies)
-#     plt.xlabel("Epochs")
-#     plt.ylabel("Accuracy")
-#     plt.title("Accuracy per epoch")
-#     plt.show()
-#
-#
-# def iterate(args):
-#     x_train, x_test, y_train, y_test = train_test_split(args.dataset_path, test_size=0.2)
-#     n_epochs = args.e
-#     learning_rate = args.alpha
-#     value_map = convert_target_to_number(set(y_train))
-#     nnetwork = NeuralNetwork(Layer(len(value_map), 26, linear), n_epochs, value_map, learning_rate)
-#     nnetwork.fit(x_train,y_train, x_test, y_test)
-#     languages_to_classify = list(value_map.keys())
-#     print('\n')
-#     print("I can only classify those classes:", *languages_to_classify)
-#     print('\n')
-#     user_stopped = False
-#
-#     while not user_stopped:
-#         user_input = input(f"Please give me text in either {languages_to_classify} languages:\nIn any other situation skip current "
-#                            f"iteration.\nType"
-#                            f"'stop' to end classification\n> ")
-#
-#         if user_input == 'stop':
-#             print('End of classification')
-#             break
-#
-#         try:
-#             vector = vectorize(user_input)
-#             predicted_as = nnetwork.predict(vector)
-#             predicted_label = [key for key, val in value_map.items() if val == predicted_as]
-#             print(f'\nPrediction of perceptron is: {predicted_as}')
-#             print(f'Which means: {predicted_label[0]}\n')
-#
-#         except Exception as e:
-#             print(e)
-#             continue
-#
-
 
 if __name__ == '__main__':
     test()
-    # #  For reference i use uniform weights, hence 6/(fanin+fanout)
-    # parser = argparse.ArgumentParser(description="CNN with 1 layer from scratch")
-    # parser.add_argument("-ds", "--dataset-path", type=str,
-    #                     help="Provide a path to a dataset from current folder. Otherwise, give full path",
-    #                     required=True)
-    #
-    # parser.add_argument("-e", type=int, help="Number of epochs",
-    #                     required=False, default=30)
-    # parser.add_argument("-a", "--alpha", type=float, help="Constant learning rate",
-    #                     required=False, default=0.1)
-    # parser.add_argument("-it",
-    #                     "--iterate-mode",
-    #                     type=int,
-    #                     help="Iterative mode, you give me vectors I give you classes",
-    #                     choices=[0, 1],
-    #                     required=False,
-    #                     default=0)
-    #
-    # args = parser.parse_args()
-    #
-    # if args.dataset_path is  None:
-    #     raise Exception('You should provide path to datasets.')
-    #
-    # if args.iterate_mode == 1:
-    #     iterate(args)
-    #     exit(0)
-    #
-    # default(args)

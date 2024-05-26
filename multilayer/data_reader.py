@@ -62,14 +62,14 @@ class DatasetImages(Dataset):
         "max_len",
     )
 
-    def __init__(self, dataset_path, test_set_percentage, batch_size=1):
-        super().__init__(dataset_path, test_set_percentage, batch_size)
+    def __init__(self, dataset_path, test_set_percentage):
+        super().__init__(dataset_path, test_set_percentage)
         self.numpy_dict = get_numpy_arrays(get_image_paths(self.dataset_path))
         self.list_of_keys = list(self.numpy_dict.keys())
         self.max_len = 0
         self.initialize_max_values()
 
-    def get_next_test_row(self) -> Tuple[List[str], np.ndarray]:
+    def get_next_test_row(self, batch_size=1) -> Tuple[List[str], np.ndarray]:
         current_index = 0  # corresponds to the letter
         current_value_index = min(self.max_index_for_each_key_train)  # corresponds to the image value in an array
 
@@ -77,7 +77,7 @@ class DatasetImages(Dataset):
             batch_keys = []
             batch_values = []
 
-            for _ in range(self.batch_size):
+            for _ in range(batch_size):
                 if current_index % len(self.list_of_keys) == 0 and current_index != 0:
                     current_index = 0
                     current_value_index += 1
@@ -100,7 +100,7 @@ class DatasetImages(Dataset):
             if batch_keys:
                 yield batch_keys, np.array(batch_values)
 
-    def get_next_data_row(self) -> Tuple[List[str], np.ndarray]:
+    def get_next_data_row(self, batch_size=1) -> Tuple[List[str], np.ndarray]:
         current_index = 0  # corresponds to the letter
         current_value_index = 0  # corresponds to the image value
         max_value_index = max(self.max_index_for_each_key_train)
@@ -109,7 +109,7 @@ class DatasetImages(Dataset):
             batch_keys = []
             batch_values = []
 
-            for _ in range(self.batch_size):
+            for _ in range(batch_size):
                 if current_index % len(self.list_of_keys) == 0 and current_index != 0:
                     current_index = 0
                     current_value_index += 1
@@ -147,23 +147,27 @@ class DatasetImages(Dataset):
 if __name__ == '__main__':
     # Testing if this thing works correctly
 
-    my_generator = DatasetImages("dataset", 0.2, batch_size=1)
+    my_generator = DatasetImages("dataset", 0.2)
 
-    getter = my_generator.get_next_data_row()
-    batch = [next(getter)]
-
-    batch_number = 0
-    letter = 0
-    data_img = 1
-
-    image_data = batch[batch_number][data_img][0]
-    print(image_data.shape)
-    image_data_shape = image_data.shape
-    image_data_1 = image_data.reshape(1, image_data_shape[1], image_data_shape[0], 1)
-
-    plt.imshow(image_data_1[0], cmap='gray')  # cmap='gray' for black and white images
-    plt.axis('off')  # Turn off axis
-    plt.show()
+    generator = my_generator.get_next_data_row(batch_size=4)
+    cos = next(generator)
+    print(cos[0])
+    print(cos[1].reshape(4,28,28,1).shape)
+    # getter = my_generator.get_next_data_row()
+    # batch = [next(getter)]
+    #
+    # batch_number = 0
+    # letter = 0
+    # data_img = 1
+    #
+    # image_data = batch[batch_number][data_img][0]
+    # print(image_data.shape)
+    # image_data_shape = image_data.shape
+    # image_data_1 = image_data.reshape(1, image_data_shape[1], image_data_shape[0], 1)
+    #
+    # plt.imshow(image_data_1[0], cmap='gray')  # cmap='gray' for black and white images
+    # plt.axis('off')  # Turn off axis
+    # plt.show()
 
 # def numpy_to_image(array):
     #     array = (array * 255).astype(np.uint8)

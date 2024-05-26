@@ -28,13 +28,6 @@ def glorot_uniform(shape):
 
 # import string
 # Convert categorical labels to one-hot encoded vectors
-def labels_to_one_hot(labels):
-    num_classes = 26  # Total number of classes (uppercase letters)
-    one_hot_labels = np.zeros((len(labels), num_classes))
-    for i, label in enumerate(labels):
-        index = ord(label) - ord('A')  # Uppercase letters from 'A' to 'Z'
-        one_hot_labels[i, index] = 1
-    return one_hot_labels
 
 
 # # Example labels

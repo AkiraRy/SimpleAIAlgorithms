@@ -156,45 +156,10 @@ class Flatten(Layer):
         pass
 
 
-# class Dense(Layer):
-#     def __init__(self, output_dim, use_bias= False):
-#         self.use_bias = use_bias
-#         self.output_dim = output_dim
-#         self.weights_setup = False
-#
-#         # trainable params
-#         self.weights = None
-#         self.bias = None
-#
-#         # data
-#         self.input_x = None
-#         self.output = None
-#
-#     def __str__(self):
-#         return f'Dense(output_dim={self.output_dim})'
-#
-#     def forward(self, Input):
-#         self.input_x = Input
-#
-#         if not self.weights_setup:
-#             self.setup_weights((self.output_dim, Input.shape[0]))
-#             self.weights_setup = True
-#
-#         output_matrix = np.dot(self.weights, Input) + self.bias
-#         return output_matrix
-#
-#     def backward(self):
-#         pass
-#
-#     def setup_weights(self, shape):
-#         self.weights = glorot_uniform(shape=shape)
-#
-#         if self.use_bias:
-#             self.bias = glorot_uniform(shape=(shape[0], 1))
-#         else:
-#             self.bias = np.zeros((self.output_dim,1))
 class Dense(Layer):
     def __init__(self, output_dim, initializer: Callable = glorot_uniform, use_bias: bool = True):
+        self.d_bias = None
+        self.d_weights = None
         self.initializer = initializer
         self.use_bias = use_bias
         self.output_dim = output_dim
@@ -216,9 +181,10 @@ class Dense(Layer):
             self.bias = None
 
     def forward(self, Input):
-        print(f"{Input.shape = }")
+        # print(f"{Input.shape = }")
         if not self.weights_setup:
-            self.setup_weights((Input.shape[1],self.output_dim, ))
+            # input_dim, output_dim
+            self.setup_weights((Input.shape[1],self.output_dim))
             self.weights_setup = True
 
         self.input_x = Input
@@ -228,8 +194,15 @@ class Dense(Layer):
             self.output += self.bias
         return self.output
 
-    def backward(self):
-        pass
+    def backward(self, do):
+        batch_size = 1
+        if len(do.shape) > 1:
+            batch_size = do.shape[0]
+        self.d_weights = np.dot(self.input_x.T, do)
+        if self.use_bias:
+            self.d_bias = np.sum(do, axis=0, keepdims=True)
+        d_input = np.dot(do,self.weights.T)
+        return d_input
 
     def __str__(self):
         return f'Dense(output_dim={self.output_dim})'
