@@ -152,8 +152,9 @@ class Flatten(Layer):
         return output_matrix
         # return np.transpose(output_matrix)
 
-    def backward(self):
-        pass
+    def backward(self, do):
+        d_x = np.reshape(do, self.input_shape)
+        return d_x
 
 
 class Dense(Layer):

@@ -24,7 +24,7 @@ class ReLU(Activation):
         dx = np.copy(self.input_x)
         dx[dx > 0] = 1
         dx[dx <= 0] = 0
-        dx = dO * dx
+        dx = dO * dx # dx is a matrice of 1 and 0
         return dx
 
 
