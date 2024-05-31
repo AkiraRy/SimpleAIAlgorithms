@@ -29,7 +29,9 @@ def convert_paths_to_array(image_paths: list):
         image_data = Image.open(img_path).convert("L")
         image_data1 = image_data.resize((28, 28), Image.LANCZOS)
         image_array = np.asarray(image_data1) / 255
+        image_array = image_array.reshape((28, 28, 1))
         converted_paths.append(image_array)
+    np.random.shuffle(converted_paths)
     return converted_paths
 
 

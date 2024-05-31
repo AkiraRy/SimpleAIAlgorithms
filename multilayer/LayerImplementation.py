@@ -4,10 +4,60 @@ import numpy as np
 from ActivationImplementation import ReLU, SoftMax
 from initialization import glorot_uniform
 
+## https://deeplearning.cs.cmu.edu/F21/document/recitation/Recitation5/CNN_Backprop_Recitation_5_F21.pdf
+
 
 class ConvolutionalLayer(Layer):
-    def backward(self):
-        pass
+    def backward(self, do):
+        batch_size, height, width, grads_depth = do.shape
+
+        full_dim_for_grads = (height - 1) * self.stride + 1
+
+        # bias
+        if self.use_bias:
+            del_b = np.sum(do, axis=(0, 1, 2)) / batch_size
+
+        # for input
+        input_dim_without_pad = self.input_x.shape[1] - 2 * self.padding
+        input_depth = self.input_x.shape[3]
+        del_input = np.zeros((batch_size, input_dim_without_pad, input_dim_without_pad, input_depth))
+
+        del_w = np.zeros((self.num_filters, self.kernel_size, self.kernel_size, input_depth))
+
+        # dilated gradient
+        del_o_dil = np.zeros((batch_size, full_dim_for_grads, full_dim_for_grads, self.num_filters))
+        del_o_dil[:, :: self.stride, :: self.stride, :] = do
+
+        for filter_index in range(self.num_filters):
+            for height in range(self.kernel_size):
+                for width in range(self.kernel_size):
+                    height_to = height + full_dim_for_grads
+                    width_to = width + full_dim_for_grads
+                    input_slice = self.input_x[:, height :height_to, width: width_to, :]
+                    input_convolved_with_grads = np.sum(input_slice * np.reshape(
+                                            del_o_dil[:, :, :, filter_index], del_o_dil.shape[: 3] + (1,)),
+                                                                            axis=(1, 2))
+                    mean_batched = np.mean(input_convolved_with_grads, axis=0)
+
+                    del_w[filter_index, height, width, :] = mean_batched
+
+        # we rotate this so it will align with the do matrix
+        weights_rotated = np.rot90(np.transpose(self.weights, (3, 1, 2, 0)), 2, axes=(1, 2))
+        del_o_dil_pad = np.pad(del_o_dil, (
+            (0,), (self.kernel_size - 1 - self.padding,), (self.kernel_size - 1 - self.padding,), (0,)),
+                                  mode='constant')
+
+        for batch_index in range(batch_size):
+            for filter_index in range(input_depth):
+                for height in range(input_dim_without_pad):
+                    for width in range(input_dim_without_pad):
+                        height_to = height + self.kernel_size
+                        width_to = width + self.kernel_size
+                        gradient_slice = del_o_dil_pad[batch_index, height:height_to, width: width_to, :]
+                        weights_convolved_grads = np.sum(gradient_slice * weights_rotated[filter_index])
+                        del_input[batch_index, height, width, filter_index] = weights_convolved_grads
+
+        return del_input
 
     def __str__(self):
         return f'Conv(filter={self.num_filters}, kernel={self.kernel_size}, stride={self.stride}, padding={self.padding})'
@@ -29,24 +79,15 @@ class ConvolutionalLayer(Layer):
         self.bias = None
         self.weights = None
         self.weights_setup = False
+        self.input_x = None
 
     def forward(self, Input):
-        """
-           The forward computation for a convolution function
-
-           Arguments:
-           X -- output activations of the previous layer, numpy array of shape (height, width) assuming input channels = 1
-           Input should have those dimensions b, d, h, w = Batch number, depth, heigth. width
-           Returns:
-           H -- conv output, numpy array of size (n_H, n_W)
-           cache -- cache of values needed for conv_backward() function
-        """
-        batch_number,  height, width, input_depth = Input.shape
-        output_dim_temp = height - self.kernel_size + 2*self.padding
+        batch_number, height, width, input_depth = Input.shape
+        output_dim_temp = height - self.kernel_size + 2 * self.padding
         assert output_dim_temp % self.stride == 0, (f"In the convolutional layer, with stride {self.stride}"
                                                     f" can`t process whole image evenly.")
 
-        output_dim = int(output_dim_temp/self.stride) + 1
+        output_dim = output_dim_temp // self.stride + 1
         output_depth = self.num_filters
 
         if not self.weights_setup:
@@ -56,7 +97,7 @@ class ConvolutionalLayer(Layer):
         padded_input = np.pad(Input, ((0,), (self.padding,), (self.padding,), (0,)), mode='constant')
         # shape is batch_number, y, x, depth
 
-        new_shape = (batch_number, output_dim, output_dim, self.num_filters)
+        new_shape = (batch_number, output_dim, output_dim, output_depth)
         output_matrix = np.zeros(new_shape)
 
         for batch_index in range(batch_number):
@@ -69,13 +110,12 @@ class ConvolutionalLayer(Layer):
 
                     image_slice = padded_input[batch_index, height_from:height_to, width_from: width_to, :]
 
-                    for filter_index in range(self.num_filters):
+                    for filter_index in range(output_depth):
                         output_matrix[batch_index, height, width, filter_index] = \
-                            np.sum(image_slice * self.weights[filter_index]) + self.bias[filter_index]
+                            np.sum(image_slice * self.weights[filter_index]) + (self.bias[filter_index] if self.use_bias else 0)
 
-        cache = (Input, self.weights, self.bias)
+        self.input_x = np.copy(padded_input)
 
-        # return output_matrix, cache
         return output_matrix
 
     def setup_weights(self, depth):
@@ -131,11 +171,37 @@ class PollingLayer(Layer):
         return output_matrix
 
     def forward(self, Input):
-            if self.mode == "max_pool":
-                return self.max_pool(Input)
-            return self.average_pool(Input)
+        if self.mode == "max_pool":
+            return self.max_pool(Input)
+        return self.average_pool(Input)
 
-    def backward(self):
+    def backward(self, do):
+        if self.mode == "max_pool":
+            return self.max_pool_d(do)
+        return self.average_pool_d(do)
+
+    def max_pool_d(self, do):
+        del_input = np.zeros(self.input_shape)
+        batch_size, height, width, depth = do.shape
+
+        for batch_index in range(batch_size):
+            for h in range(height):
+                for w in range(width):
+                    height_from = h * self.stride
+                    width_from = w * self.stride
+
+                    for d in range(depth):
+                        max_index = self.index_matrix[batch_index, h, w, d]
+                        max_height_index = max_index // self.kernel_size
+                        max_width_index = max_index % self.kernel_size
+
+                        del_input[batch_index, height_from + max_height_index, width_from + max_width_index, d] += do[
+                            batch_index, h, w, d]
+
+        return del_input
+
+
+    def average_pool_d(self, do):
         pass
 
 
@@ -185,7 +251,7 @@ class Dense(Layer):
         # print(f"{Input.shape = }")
         if not self.weights_setup:
             # input_dim, output_dim
-            self.setup_weights((Input.shape[1],self.output_dim))
+            self.setup_weights((Input.shape[1], self.output_dim))
             self.weights_setup = True
 
         self.input_x = Input
@@ -202,7 +268,7 @@ class Dense(Layer):
         self.d_weights = np.dot(self.input_x.T, do)
         if self.use_bias:
             self.d_bias = np.sum(do, axis=0, keepdims=True)
-        d_input = np.dot(do,self.weights.T)
+        d_input = np.dot(do, self.weights.T)
         return d_input
 
     def __str__(self):
@@ -226,7 +292,7 @@ def main():
                       [0, 1, 0.5, 1],
                       [1, 0.5, 0.5, 1]])
     print(array.shape)
-    convo_layer = ConvolutionalLayer(kernel_size=(2,2), num_filters=1, stride=1, padding=1, use_bias=False)
+    convo_layer = ConvolutionalLayer(kernel_size=(2, 2), num_filters=1, stride=1, padding=1, use_bias=False)
     print(convo_layer.filters)
     forward_pass = convo_layer.forward(array)[0]
     print(forward_pass[0])
@@ -257,6 +323,7 @@ def test():
     # print(output_data[0])
 
     print("Output shape:", output_data.shape)
+
 
 def test_forward():
     array_string = """[[  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,

@@ -66,7 +66,6 @@ class SoftMax(Activation):
             return dO
         size = np.size(self.output)
         matrix = np.tile(self.output, size)
-        print(matrix)
         return np.dot(
             matrix * (np.identity(size) - np.transpose(matrix)),
             dO

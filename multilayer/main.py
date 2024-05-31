@@ -60,7 +60,7 @@ class Sequential:
         self.optimizer = optimizers.get(optimizer)(lr=lr)
         self.loss = losses.get(loss)()
 
-    def fit(self, data_reader: Dataset, epochs=100, batch_size=32):
+    def fit(self, data_reader: Dataset, epochs=10, batch_size=8):
         train_generator = data_reader.get_next_data_row(batch_size=batch_size)
         # ???
         for epoch in range(epochs):
@@ -75,6 +75,7 @@ class Sequential:
 
             y_hat_one_hot_encoded = labels_to_one_hot(y_train)
             loss = self.loss.calculate_loss(y_hat_one_hot_encoded, y_predicted)  # for humans, tracking performance
+            print(f"Number of epoch: {epoch}, loss: {loss}")
             loss_deriv = self.loss.backward(y_hat_one_hot_encoded, y_predicted)  # for model param updating
 
             self.backward(loss_deriv)
@@ -89,6 +90,9 @@ class Sequential:
         deriv_output = do
         # deriv_list = []
         for layer in reversed(self.layers):
+            if isinstance(layer, SoftMax):
+                continue
+
             deriv_output = layer.backward(deriv_output)
 
 
@@ -151,6 +155,28 @@ def plot_layers(output):
     plt.title("Output of SoftMax Layer")
     plt.show()
 
+def normal_test():
+    model_param = {
+        'l1': (ConvolutionalLayer, (5, 6, 1, 2)),
+        'l2': (ReLU, ()),
+        'l3': (PollingLayer, (2, 2)),
+        "l4": (ConvolutionalLayer, (5, 12, 1, 0)),
+        'l5': (ReLU, ()),
+        'l6': (PollingLayer, (2, 2)),
+        'l7': (ConvolutionalLayer, (5, 100, 1, 0)),
+        'l8': (Flatten, ()),
+        'l9': (Dense, (26,)),
+        'l10': (SoftMax, ())
+    }
+    np.random.seed(42)
+
+    model = Sequential()
+    for key, value in model_param.items():
+        model.add(value[0](*value[1]))
+
+    model.compile()
+    data_reader = DatasetImages("dataset", 0.2)
+    model.fit(data_reader)
 
 def test():
     model_param = {
@@ -184,32 +210,37 @@ def test():
     image_data_shape = image_data.shape
     image_data_1 = image_data.reshape(1,image_data_shape[1], image_data_shape[0], 1)
 
-    image_data2 = batch[batch_number][data_img][1]
-    image_data_shape2 = image_data2.shape
-    image_data_2 = image_data2.reshape(1,image_data_shape2[1], image_data_shape2[0], 1)
-    batched_array = np.concatenate((image_data_1, image_data_2), axis=0)
+    # image_data2 = batch[batch_number][data_img][1]
+    # image_data_shape2 = image_data2.shape
+    # image_data_2 = image_data2.reshape(1,image_data_shape2[1], image_data_shape2[0], 1)
+    # batched_array = np.concatenate((image_data_1, image_data_2), axis=0)
 
-    output = model.forward(batched_array)
-    first_batch_out = output[0][0]
+    output = model.forward(image_data_1)
+    first_batch_out = output[0]
     second_batch_out = output[0][1]
 
-    y_true_1 = [0]*10
-    y_true_1[1] = 1
+    y_true_1 = np.array([0,0,1,0,0,0,0,0,0,0])
 
-    y_true_2 = [0]*10
-    y_true_2[2] = 1
+    print(y_true_1)
+    print(first_batch_out)
+    loss1 = CrossEntropyLoss().calculate_loss(y_true_1, [first_batch_out])
+    loss_der = CrossEntropyLoss().backward(y_true_1, [first_batch_out])
 
-    loss1 = CrossEntropyLoss().calculate_loss([y_true_1], [first_batch_out])
-    loss2 = CrossEntropyLoss().calculate_loss([y_true_2], [second_batch_out])
-    print(f"loss of first batch: {loss1}")
-    print(f"loss of second batch: {loss2}")
-    print(f"average loss in  batch: {(loss1+loss2)/2}")
+    model.backward(loss_der)
 
-    batched_y_true = np.array([y_true_1, y_true_2])
-    batched_out = output[0]
-    print(f"shape of batched y_true = {batched_y_true.shape}")
-    print(f"shape of batched predict = {batched_out.shape}")
-    print(f"Loss of the batch: {CrossEntropyLoss().calculate_loss(batched_y_true, batched_out)}")
+    # y_true_2 = [0]*10
+    # y_true_2[2] = 1
+    #
+    # loss2 = CrossEntropyLoss().calculate_loss([y_true_2], [second_batch_out])
+    # print(f"loss of first batch: {loss1}")
+    # print(f"loss of second batch: {loss2}")
+    # print(f"average loss in  batch: {(loss1+loss2)/2}")
+    #
+    # batched_y_true = np.array([y_true_1, y_true_2])
+    # batched_out = output[0]
+    # print(f"shape of batched y_true = {batched_y_true.shape}")
+    # print(f"shape of batched predict = {batched_out.shape}")
+    # print(f"Loss of the batch: {CrossEntropyLoss().calculate_loss(batched_y_true, batched_out)}")
 
     # print(np.sum(output[0]))
     # print(model.get_info())
@@ -219,4 +250,4 @@ def test():
 
 
 if __name__ == '__main__':
-    test()
+    normal_test()
